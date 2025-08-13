@@ -34,7 +34,9 @@ const boxData = {
     used: 75,
     unused: 25,
     lifetimeUsage: 85,
-    trend: 'up'
+    trend: 'up',
+    averageLifetime: 120, // days
+    maxLifetime: 180 // days
   },
   plastic: {
     name: 'Plastic',
@@ -50,7 +52,9 @@ const boxData = {
     used: 180,
     unused: 70,
     lifetimeUsage: 70,
-    trend: 'up'
+    trend: 'up',
+    averageLifetime: 90, // days
+    maxLifetime: 150 // days
   },
   steel: {
     name: 'Steel',
@@ -66,7 +70,9 @@ const boxData = {
     used: 35,
     unused: 15,
     lifetimeUsage: 95,
-    trend: 'down'
+    trend: 'down',
+    averageLifetime: 200, // days
+    maxLifetime: 300 // days
   },
   cardboard: {
     name: 'Cardboard',
@@ -83,7 +89,9 @@ const boxData = {
     used: 0,
     unused: 0,
     lifetimeUsage: 0,
-    trend: 'up'
+    trend: 'up',
+    averageLifetime: 45, // days
+    maxLifetime: 60 // days
   },
   cardheaded: {
     name: 'Cardheaded',
@@ -99,7 +107,9 @@ const boxData = {
     used: 130,
     unused: 50,
     lifetimeUsage: 55,
-    trend: 'up'
+    trend: 'up',
+    averageLifetime: 75, // days
+    maxLifetime: 100 // days
   }
 }
 
@@ -108,19 +118,34 @@ const SmartBoxDashboard = () => {
   const [selectedBoxType, setSelectedBoxType] = useState('wooden')
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [realtimeCardboardData, setRealtimeCardboardData] = useState(null)
+  const [isLoadingCardboard, setIsLoadingCardboard] = useState(true)
 
   // Get current data - use realtime data for cardboard, static for others
   const getCurrentData = () => {
     if (selectedBoxType === 'cardboard') {
-      // For cardboard, always use real-time data, fallback to static structure if no data yet
-      if (realtimeCardboardData) {
-        return { ...boxData[selectedBoxType], ...realtimeCardboardData }
-      } else {
-        // Return structure with zero values while loading
+      // For cardboard, ONLY use real-time data - no fallback to static
+      if (realtimeCardboardData && !isLoadingCardboard) {
         return {
           ...boxData[selectedBoxType],
-          total: 0, balance: 0, packing: 0, finish: 0, dispatch: 0,
-          used: 0, unused: 0, delivered: 0, returned: 0, lifetimeUsage: 0
+          ...realtimeCardboardData,
+          // Ensure we override ALL values with real-time data
+          total: realtimeCardboardData.total,
+          balance: realtimeCardboardData.balance,
+          packing: realtimeCardboardData.packing,
+          finish: realtimeCardboardData.finish,
+          dispatch: realtimeCardboardData.dispatch,
+          used: realtimeCardboardData.used,
+          unused: realtimeCardboardData.unused,
+          delivered: realtimeCardboardData.delivered,
+          returned: realtimeCardboardData.returned,
+          lifetimeUsage: realtimeCardboardData.lifetimeUsage
+        }
+      } else {
+        // Show loading state with actual structure
+        return {
+          ...boxData[selectedBoxType],
+          total: '...', balance: '...', packing: '...', finish: '...', dispatch: '...',
+          used: '...', unused: '...', delivered: '...', returned: '...', lifetimeUsage: '...'
         }
       }
     }
@@ -133,6 +158,7 @@ const SmartBoxDashboard = () => {
   useEffect(() => {
     const fetchCardboardData = async () => {
       try {
+        setIsLoadingCardboard(true)
         const response = await fetch('http://localhost:5001/api/scans/counts')
         const counts = await response.json()
 
@@ -143,51 +169,45 @@ const SmartBoxDashboard = () => {
         // Calculate lifetime usage percentage (used boxes / total boxes * 100)
         const lifetimeUsage = total > 0 ? Math.round((used / total) * 100) : 0
 
-        setRealtimeCardboardData({
-          total: total || 0,
-          balance: counts.warehouse || 0,
-          packing: counts.packaging || 0,
-          finish: counts.finishing || 0,
-          dispatch: counts.dispatch || 0,
-          used: used || 0,
-          unused: unused || 0,
-          delivered: counts.dispatch || 0, // Dispatch count as delivered
+        const newData = {
+          total: total,
+          balance: counts.warehouse,
+          packing: counts.packaging,
+          finish: counts.finishing,
+          dispatch: counts.dispatch,
+          used: used,
+          unused: unused,
+          delivered: counts.dispatch, // Dispatch count as delivered
           returned: 0, // We don't track returns yet
           lifetimeUsage: lifetimeUsage,
           trend: total > 0 ? 'up' : 'down' // Show up trend if we have boxes
-        })
+        }
 
-        console.log('Updated cardboard data:', {
+        setRealtimeCardboardData(newData)
+        setIsLoadingCardboard(false)
+
+        console.log('✅ Real-time cardboard data updated:', {
           total: total,
           warehouse: counts.warehouse,
           packaging: counts.packaging,
           finishing: counts.finishing,
           dispatch: counts.dispatch,
           used: used,
-          unused: unused
+          unused: unused,
+          lifetimeUsage: lifetimeUsage
         })
       } catch (error) {
-        console.error('Error fetching cardboard data:', error)
-        // Set minimal fallback data on error
-        setRealtimeCardboardData({
-          total: 0,
-          balance: 0,
-          packing: 0,
-          finish: 0,
-          dispatch: 0,
-          used: 0,
-          unused: 0,
-          delivered: 0,
-          returned: 0,
-          lifetimeUsage: 0,
-          trend: 'down'
-        })
+        console.error('❌ Error fetching cardboard data:', error)
+        setIsLoadingCardboard(false)
+        // Don't set fallback data - let it show error state
       }
     }
 
+    // Initial fetch
     fetchCardboardData()
-    // Update every 3 seconds for more responsive updates
-    const interval = setInterval(fetchCardboardData, 3000)
+
+    // Update every 2 seconds for real-time responsiveness
+    const interval = setInterval(fetchCardboardData, 2000)
 
     return () => clearInterval(interval)
   }, [])
@@ -236,7 +256,18 @@ const SmartBoxDashboard = () => {
               )}
             </div>
           </div>
-          <div className="mt-4 md:mt-0 flex justify-end">
+          <div className="mt-4 md:mt-0 flex items-center gap-4">
+            {/* Lifetime Info */}
+            <div className="text-right">
+              <div className="text-sm text-gray-600">Box Lifetime</div>
+              <div className="text-lg font-semibold text-gray-800">
+                {currentData.averageLifetime} days avg
+              </div>
+              <div className="text-xs text-gray-500">
+                Max: {currentData.maxLifetime} days
+              </div>
+            </div>
+
             <button
               onClick={() => navigate('/monitoring')}
               className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-all duration-300"
@@ -264,7 +295,7 @@ const SmartBoxDashboard = () => {
           {/* Left Column - Main Stats */}
           <div className="lg:col-span-8 space-y-4">
             <div className="animate-fade-in" style={{ animationDelay: '0.4s' }}>
-              <MainStatsRow data={currentData} />
+              <MainStatsRow data={currentData} boxType={selectedBoxType} />
             </div>
             <div className="animate-fade-in" style={{ animationDelay: '0.6s' }}>
               <DeliveryTracking data={currentData} />

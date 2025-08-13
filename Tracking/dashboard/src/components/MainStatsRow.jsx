@@ -1,14 +1,17 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Package,
   Warehouse,
   PackageCheck,
   Truck,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react'
 
-const MainStatsRow = ({ data }) => {
+const MainStatsRow = ({ data, boxType }) => {
+  const navigate = useNavigate()
   // Calculate missing boxes (if dispatch < finish)
   const missingBoxes = Math.max(0, data.finish - data.dispatch)
 
@@ -54,6 +57,13 @@ const MainStatsRow = ({ data }) => {
       icon: Truck,
       color: 'bg-dispatch-50 border-l-dispatch-500 text-dispatch-700',
       iconColor: 'text-dispatch-600'
+    },
+    {
+      label: 'Missing Boxes',
+      value: missingBoxes,
+      icon: AlertTriangle,
+      color: 'bg-red-50 border-l-red-500 text-red-700',
+      iconColor: 'text-red-600'
     }
   ]
 
@@ -73,21 +83,33 @@ const MainStatsRow = ({ data }) => {
         </div>
       </div>
       
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-6 gap-4">
         {stats.map((stat, index) => (
           <div
             key={index}
             className={`
               stat-card border-l-4 ${stat.color}
-              animate-fade-in
+              animate-fade-in cursor-pointer hover:shadow-lg transition-all duration-200 group
             `}
             style={{ animationDelay: `${index * 0.1}s` }}
+            onClick={() => {
+              if (stat.label === 'Total Boxes') {
+                navigate(`/boxes/${boxType}`)
+              } else if (stat.label === 'Missing Boxes') {
+                navigate(`/missing/${boxType}`)
+              }
+            }}
           >
             <div className="flex items-center justify-between mb-2">
               <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
-              {stat.label === 'Dispatch' && missingBoxes > 0 && (
-                <AlertTriangle className="w-4 h-4 text-missing-500" />
-              )}
+              <div className="flex items-center gap-1">
+                {(stat.label === 'Total Boxes' || stat.label === 'Missing Boxes') && (
+                  <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                )}
+                {stat.label === 'Dispatch' && missingBoxes > 0 && (
+                  <AlertTriangle className="w-4 h-4 text-missing-500" />
+                )}
+              </div>
             </div>
 
             <div className="text-xl font-bold mb-1">
@@ -96,6 +118,9 @@ const MainStatsRow = ({ data }) => {
 
             <div className="text-sm font-medium opacity-75">
               {stat.label}
+              {(stat.label === 'Total Boxes' || stat.label === 'Missing Boxes') && (
+                <span className="text-xs text-blue-500 ml-1">(Click to view)</span>
+              )}
             </div>
 
             {stat.label === 'Warehouse Available Stock' && (
