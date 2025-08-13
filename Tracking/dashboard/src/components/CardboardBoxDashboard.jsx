@@ -27,22 +27,39 @@ const CardboardBoxDashboard = ({ onBack }) => {
   const missingBoxes = Math.max(0, data.finish - data.dispatch);
 
   useEffect(() => {
-    // Fetch real-time box data from Firebase
-    fetch('https://rfidscanner-52fdb-default-rtdb.asia-southeast1.firebasedatabase.app/rfid.json')
-      .then(res => res.json())
-      .then(fbData => {
-        // Expecting fbData to have keys: total, balance, packing, finish, dispatch
-        if (fbData) {
-          setRealtimeData({
-            total: fbData.total ?? 400,
-            balance: fbData.balance ?? 100,
-            packing: fbData.packing ?? 80,
-            finish: fbData.finish ?? 80,
-            dispatch: fbData.dispatch ?? 75
-          });
-        }
-      })
-      .catch(() => {
+    // Fetch real-time data from backend scans
+    const fetchRealtimeData = async () => {
+      try {
+        const response = await fetch('http://localhost:5001/api/scans');
+        const scans = await response.json();
+
+        // Count boxes by section
+        const sectionCounts = {
+          warehouse: 0,
+          packaging: 0,
+          finishing: 0,
+          dispatch: 0
+        };
+
+        scans.forEach(scan => {
+          const section = scan.section?.toLowerCase();
+          if (section === 'warehouse') sectionCounts.warehouse++;
+          else if (section === 'packaging') sectionCounts.packaging++;
+          else if (section === 'finishing') sectionCounts.finishing++;
+          else if (section === 'dispatch') sectionCounts.dispatch++;
+        });
+
+        const total = sectionCounts.warehouse + sectionCounts.packaging + sectionCounts.finishing + sectionCounts.dispatch;
+
+        setRealtimeData({
+          total: total || 400,
+          balance: sectionCounts.warehouse || 100,
+          packing: sectionCounts.packaging || 80,
+          finish: sectionCounts.finishing || 80,
+          dispatch: sectionCounts.dispatch || 75
+        });
+      } catch (error) {
+        console.error('Error fetching realtime data:', error);
         // fallback to default values if fetch fails
         setRealtimeData({
           total: 400,
@@ -51,7 +68,14 @@ const CardboardBoxDashboard = ({ onBack }) => {
           finish: 80,
           dispatch: 75
         });
-      });
+      }
+    };
+
+    fetchRealtimeData();
+    // Update every 5 seconds
+    const interval = setInterval(fetchRealtimeData, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Lifecycle stats (uses realtime data)
