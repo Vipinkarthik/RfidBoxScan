@@ -57,3 +57,31 @@ exports.getScans = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.getSectionCounts = async (req, res) => {
+  try {
+    const scans = await Scan.find();
+
+    const sectionCounts = {
+      warehouse: 0,
+      packaging: 0,
+      finishing: 0,
+      dispatch: 0,
+      total: 0
+    };
+
+    scans.forEach(scan => {
+      const section = scan.section?.toLowerCase();
+      if (section === 'warehouse') sectionCounts.warehouse++;
+      else if (section === 'packaging') sectionCounts.packaging++;
+      else if (section === 'finishing') sectionCounts.finishing++;
+      else if (section === 'dispatch') sectionCounts.dispatch++;
+    });
+
+    sectionCounts.total = sectionCounts.warehouse + sectionCounts.packaging + sectionCounts.finishing + sectionCounts.dispatch;
+
+    res.json(sectionCounts);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

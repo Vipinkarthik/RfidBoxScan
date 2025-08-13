@@ -1,16 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, Boxes, Truck, BarChart2, ShieldCheck, Zap } from 'lucide-react';
 
-const boxData = {
+const staticBoxData = {
   wooden: { total: 100, icon: Boxes, color: 'amber' },
   plastic: { total: 250, icon: Package, color: 'blue' },
   steel: { total: 50, icon: ShieldCheck, color: 'slate' },
   cardboard: { total: 400, icon: Truck, color: 'yellow' },
   cardheaded: { total: 180, icon: BarChart2, color: 'pink' }
 };
-
-const totalBoxes = Object.values(boxData).reduce((sum, box) => sum + box.total, 0);
 
 const essentialFeatures = [
   { text: 'Monitor all box types in one place', icon: Boxes },
@@ -22,6 +20,38 @@ const essentialFeatures = [
 
 const IntermediatePage = () => {
   const navigate = useNavigate();
+  const [cardboardCount, setCardboardCount] = useState(400);
+
+  // Fetch real-time cardboard count
+  useEffect(() => {
+    const fetchCardboardCount = async () => {
+      try {
+        const response = await fetch('http://localhost:5001/api/scans/counts');
+        const counts = await response.json();
+
+        // Use total count from the counts endpoint
+        setCardboardCount(counts.total || 0);
+      } catch (error) {
+        console.error('Error fetching cardboard count:', error);
+        setCardboardCount(400); // fallback to static value
+      }
+    };
+
+    fetchCardboardCount();
+    // Update every 10 seconds
+    const interval = setInterval(fetchCardboardCount, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Create dynamic box data with real-time cardboard count
+  const boxData = {
+    ...staticBoxData,
+    cardboard: { ...staticBoxData.cardboard, total: cardboardCount }
+  };
+
+  const totalBoxes = Object.values(boxData).reduce((sum, box) => sum + box.total, 0);
+
   return (
     <div className="h-screen w-full overflow-y-auto bg-gradient-to-br from-blue-200 via-amber-100 to-pink-200 animate-gradient-ios"
      style={{ backgroundSize: '400% 400%' }}>

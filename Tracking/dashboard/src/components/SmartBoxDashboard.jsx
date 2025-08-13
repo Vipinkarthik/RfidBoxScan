@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MonitorSmartphone } from 'lucide-react'
 import { 
@@ -72,16 +72,17 @@ const boxData = {
     name: 'Cardboard',
     icon: Package,
     color: 'yellow',
-    total: 400,
-    balance: 100,
-    packing: 80,
-    finish: 80,
-    dispatch: 75,
-    delivered: 90,
-    returned: 60,
-    used: 300,
-    unused: 100,
-    lifetimeUsage: 30,
+    // Static fallback values - will be overridden by real-time data
+    total: 0,
+    balance: 0,
+    packing: 0,
+    finish: 0,
+    dispatch: 0,
+    delivered: 0,
+    returned: 0,
+    used: 0,
+    unused: 0,
+    lifetimeUsage: 0,
     trend: 'up'
   },
   cardheaded: {
@@ -106,7 +107,90 @@ const SmartBoxDashboard = () => {
   const navigate = useNavigate();
   const [selectedBoxType, setSelectedBoxType] = useState('wooden')
   const [isTransitioning, setIsTransitioning] = useState(false)
-  const currentData = boxData[selectedBoxType]
+  const [realtimeCardboardData, setRealtimeCardboardData] = useState(null)
+
+  // Get current data - use realtime data for cardboard, static for others
+  const getCurrentData = () => {
+    if (selectedBoxType === 'cardboard') {
+      // For cardboard, always use real-time data, fallback to static structure if no data yet
+      if (realtimeCardboardData) {
+        return { ...boxData[selectedBoxType], ...realtimeCardboardData }
+      } else {
+        // Return structure with zero values while loading
+        return {
+          ...boxData[selectedBoxType],
+          total: 0, balance: 0, packing: 0, finish: 0, dispatch: 0,
+          used: 0, unused: 0, delivered: 0, returned: 0, lifetimeUsage: 0
+        }
+      }
+    }
+    return boxData[selectedBoxType]
+  }
+
+  const currentData = getCurrentData()
+
+  // Fetch realtime cardboard data from backend
+  useEffect(() => {
+    const fetchCardboardData = async () => {
+      try {
+        const response = await fetch('http://localhost:5001/api/scans/counts')
+        const counts = await response.json()
+
+        const used = counts.packaging + counts.finishing + counts.dispatch
+        const unused = counts.warehouse
+        const total = counts.total
+
+        // Calculate lifetime usage percentage (used boxes / total boxes * 100)
+        const lifetimeUsage = total > 0 ? Math.round((used / total) * 100) : 0
+
+        setRealtimeCardboardData({
+          total: total || 0,
+          balance: counts.warehouse || 0,
+          packing: counts.packaging || 0,
+          finish: counts.finishing || 0,
+          dispatch: counts.dispatch || 0,
+          used: used || 0,
+          unused: unused || 0,
+          delivered: counts.dispatch || 0, // Dispatch count as delivered
+          returned: 0, // We don't track returns yet
+          lifetimeUsage: lifetimeUsage,
+          trend: total > 0 ? 'up' : 'down' // Show up trend if we have boxes
+        })
+
+        console.log('Updated cardboard data:', {
+          total: total,
+          warehouse: counts.warehouse,
+          packaging: counts.packaging,
+          finishing: counts.finishing,
+          dispatch: counts.dispatch,
+          used: used,
+          unused: unused
+        })
+      } catch (error) {
+        console.error('Error fetching cardboard data:', error)
+        // Set minimal fallback data on error
+        setRealtimeCardboardData({
+          total: 0,
+          balance: 0,
+          packing: 0,
+          finish: 0,
+          dispatch: 0,
+          used: 0,
+          unused: 0,
+          delivered: 0,
+          returned: 0,
+          lifetimeUsage: 0,
+          trend: 'down'
+        })
+      }
+    }
+
+    fetchCardboardData()
+    // Update every 3 seconds for more responsive updates
+    const interval = setInterval(fetchCardboardData, 3000)
+
+    return () => clearInterval(interval)
+  }, [])
 
   const handleBoxTypeSelect = (newType) => {
     if (newType !== selectedBoxType) {
